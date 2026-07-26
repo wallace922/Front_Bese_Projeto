@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-size: 17px;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0e1410;
+}
+::-webkit-scrollbar-thumb {
+  background: #3d4f3e;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+}
+
+@layer components {
+  .glass-panel {
+    @apply rounded-xl border border-white/10 bg-black/60 backdrop-blur-md shadow-inner;
+  }
+  .brasao-bg {
+    background-image: url(/brasao.png);
+    background-size: cover;
+    background-position: center;
+    opacity: 0.25;
+  }
+}
+
+/* ── Tema Claro (Light Mode) ── */
+html.theme-light {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: white; /* Define explicitamente o fundo para evitar bordas pretas */
+}
+
+html.theme-light img, 
+html.theme-light .no-invert {
+  filter: invert(1) hue-rotate(180deg);
+}
