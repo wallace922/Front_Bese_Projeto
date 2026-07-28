@@ -30,8 +30,8 @@ export default function VinculoBlock() {
     const empAno = parseInt(empenhoAno, 10);
     const vinculoValor = parseBRCurrency(valor);
 
-    if (!npNum || !npAnoNum || !empNum || !empAno || isNaN(vinculoValor)) {
-      setError('Preencha todos os campos: Nº NP, Ano NP, Nº Empenho, Ano Empenho e Valor Vínculo (ex: 1.500,30).');
+    if (isNaN(npNum) || isNaN(npAnoNum) || isNaN(empNum) || isNaN(empAno) || isNaN(vinculoValor) || vinculoValor <= 0) {
+      setError('Preencha todos os campos com valores válidos: Nº NP, Ano NP, Nº Empenho, Ano Empenho e Valor Vínculo maior que zero (ex: 1.500,30).');
       return;
     }
 

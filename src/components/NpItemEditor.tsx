@@ -106,30 +106,34 @@ export function NpItemEditor({
   const [beneficiarioLoading, setBeneficiarioLoading] = useState(false);
   const [beneficiarioError, setBeneficiarioError] = useState<string | null>(null);
 
-  // Ref para saber o último codEfd buscado e evitar buscas duplicadas
-  const lastFetchedEfd = useRef<string>('');
+  // Ref para saber a última combinação (codEfd + dataLiquidacao) buscada
+  const lastFetchedKey = useRef<string>('');
 
   function set(patch: Partial<ItemEditState>) {
     onChange(idx, { ...item, ...patch });
   }
 
-  // ── Busca opções de receita quando o usuário sai do campo codEfd ────────────
-  const fetchOpcoes = useCallback(async () => {
-    const codEfdNum = parseInt(item.codEfd, 10);
-    if (!item.codEfd || isNaN(codEfdNum) || !dataLiquidacao) return;
-    if (lastFetchedEfd.current === item.codEfd) return;
+  // ── Busca opções de receita para um EFD + Data ────────────────────────────
+  const fetchOpcoes = useCallback(async (forcedEfd?: string, forcedDate?: string) => {
+    const targetEfd = forcedEfd ?? item.codEfd;
+    const targetDate = forcedDate ?? dataLiquidacao;
+    const codEfdNum = parseInt(targetEfd, 10);
 
-    lastFetchedEfd.current = item.codEfd;
+    if (item.taxTipo !== 'NAO_OPTANTE' || !targetEfd || isNaN(codEfdNum) || !targetDate) return;
+
+    const fetchKey = `${targetEfd}_${targetDate}`;
+    if (lastFetchedKey.current === fetchKey) return;
+    lastFetchedKey.current = fetchKey;
+
     setOpcoesLoading(true);
     setOpcoesError(null);
-    setOpcoes([]);
-    set({ codigoReceita: null });
 
-    const result = await getOpcoesReceitaPorEfd(codEfdNum, dataLiquidacao);
+    const result = await getOpcoesReceitaPorEfd(codEfdNum, targetDate);
     setOpcoesLoading(false);
 
     if (result.errorMessage) {
       setOpcoesError('Erro ao buscar opções de receita para este EFD.');
+      setOpcoes([]);
       return;
     }
 
@@ -137,23 +141,35 @@ export function NpItemEditor({
     setOpcoes(lista);
 
     if (lista.length === 1) {
-      // Seleção automática — zero fricção para o caso mais comum
+      // Seleção automática quando só há 1 regra vigente
       set({ codigoReceita: lista[0].codigoReceita });
+    } else if (lista.length > 1) {
+      // Múltiplos códigos de receita vigentes:
+      // Preserva se o item já possui um codigoReceita presente na lista
+      const currentRec = item.codigoReceita;
+      const existsInList = currentRec != null && lista.some(o => o.codigoReceita === currentRec);
+      if (!existsInList) {
+        set({ codigoReceita: null });
+      }
     } else if (lista.length === 0) {
       setOpcoesError('Nenhuma regra de imposto vigente para este EFD nesta data.');
-    }
-    // Se > 1, o select abaixo será exibido
-  }, [item.codEfd, dataLiquidacao]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Quando codEfd é limpo, resetar tudo
-  useEffect(() => {
-    if (!item.codEfd) {
-      setOpcoes([]);
-      setOpcoesError(null);
-      lastFetchedEfd.current = '';
       set({ codigoReceita: null });
     }
-  }, [item.codEfd]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [item.taxTipo, item.codEfd, item.codigoReceita, dataLiquidacao]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Efeito automático para buscar opções de receita quando o tipo for NÃO OPTANTE, houver EFD e Data de Liquidação
+  useEffect(() => {
+    if (item.taxTipo === 'NAO_OPTANTE' && item.codEfd && dataLiquidacao) {
+      const codEfdNum = parseInt(item.codEfd, 10);
+      if (!isNaN(codEfdNum)) {
+        fetchOpcoes(item.codEfd, dataLiquidacao);
+      }
+    } else if (!item.codEfd || item.taxTipo === 'OPTANTE') {
+      setOpcoes([]);
+      setOpcoesError(null);
+      lastFetchedKey.current = '';
+    }
+  }, [item.taxTipo, item.codEfd, dataLiquidacao, fetchOpcoes]);
 
   // ── Lookup de empresa beneficiária por CNPJ ─────────────────────────────────
   const fetchBeneficiaria = useCallback(async () => {
@@ -241,7 +257,7 @@ export function NpItemEditor({
               });
               setOpcoes([]);
               setOpcoesError(null);
-              lastFetchedEfd.current = '';
+              lastFetchedKey.current = '';
             }}
             options={[
               { value: 'OPTANTE', label: 'OPTANTE' },
@@ -261,11 +277,11 @@ export function NpItemEditor({
                 value={item.codEfd}
                 onChange={e => {
                   set({ codEfd: e.target.value, codigoReceita: null });
-                  lastFetchedEfd.current = '';
+                  lastFetchedKey.current = '';
                   setOpcoes([]);
                   setOpcoesError(null);
                 }}
-                onBlur={fetchOpcoes}
+                onBlur={() => fetchOpcoes()}
                 className="w-36"
               />
               {opcoesLoading && (

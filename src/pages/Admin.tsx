@@ -99,7 +99,6 @@ function UserListTab() {
     const colors: Record<Role, string> = {
       ADMIN:  'bg-amber-500/20 text-amber-400 border-amber-500/40',
       USER:   'bg-blue-500/20 text-blue-400 border-blue-500/40',
-      VIEWER: 'bg-stone-500/20 text-stone-400 border-stone-500/40',
     };
     return (
       <span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${colors[role] ?? colors.USER}`}>
@@ -426,7 +425,6 @@ function RoleSelect({ id, value, onChange }: { id: string; value: Role; onChange
       >
         <option value="USER">USER</option>
         <option value="ADMIN">ADMIN</option>
-        <option value="VIEWER">VIEWER</option>
       </select>
     </div>
   );

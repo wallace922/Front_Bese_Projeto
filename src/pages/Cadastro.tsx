@@ -159,17 +159,21 @@ function FormEmpenho() {
 
   async function handleSave() {
     setError(null); setSuccess(null);
-    if (!numero || !ano || !fontDeOrigin || !internalPlan || !nature) {
-      setError('Todos os campos são obrigatórios.');
+    const num = parseInt(numero, 10);
+    const anoNum = parseInt(ano, 10);
+    const fontNum = fontDeOrigin && fontDeOrigin.trim() !== '' ? parseInt(fontDeOrigin, 10) : undefined;
+    const natNum = parseInt(nature, 10);
+    if (isNaN(num) || isNaN(anoNum) || isNaN(natNum) || !internalPlan.trim()) {
+      setError('Verifique os campos obrigatórios. Número, Ano e Natureza devem ser válidos.');
       return;
     }
     setLoading(true);
     const dto: EmpenhoDto = {
-      numero: parseInt(numero, 10),
-      ano: parseInt(ano, 10),
-      fontDeOrigin: parseInt(fontDeOrigin, 10),
+      numero: num,
+      ano: anoNum,
+      ...(fontNum !== undefined && !isNaN(fontNum) ? { fontDeOrigin: fontNum } : {}),
       internalPlan: internalPlan.trim(),
-      nature: parseInt(nature, 10),
+      nature: natNum,
     };
     const result = await saveEmpenho(dto);
     if (result.data) {
@@ -224,13 +228,19 @@ function FormFinancialPlanning() {
 
   async function handleSave() {
     setError(null); setSuccess(null);
-    if (!numero || !data || !vinculation || !origin) { setError('Todos os campos são obrigatórios.'); return; }
+    const num = parseInt(numero, 10);
+    const vinc = parseInt(vinculation, 10);
+    const orig = parseInt(origin, 10);
+    if (isNaN(num) || !data || isNaN(vinc) || isNaN(orig)) {
+      setError('Todos os campos são obrigatórios e devem conter valores válidos.');
+      return;
+    }
     setLoading(true);
     const dto: FinancialPlanningDto = {
-      numero: parseInt(numero, 10),
+      numero: num,
       data,
-      vinculation: parseInt(vinculation, 10),
-      origin: parseInt(origin, 10),
+      vinculation: vinc,
+      origin: orig,
     };
     const result = await saveFinancialPlanning(dto);
     if (result.data) {
@@ -321,6 +331,11 @@ function FormPaymentNote() {
     if (npItems.length === 0) { setError('Adicione pelo menos um item.'); return; }
     if (npItems.some(it => !it.value || parseBRCurrency(it.value) <= 0)) {
       setError('Todos os itens devem ter um valor maior que zero.'); return;
+    }
+    const itemSemReceita = npItems.find(it => it.taxTipo === 'NAO_OPTANTE' && it.codEfd && it.codigoReceita == null);
+    if (itemSemReceita) {
+      setError(`Selecione o Código de Receita para o item com Cód. EFD ${itemSemReceita.codEfd}.`);
+      return;
     }
     setConfirmOpen(true);
   }
@@ -540,19 +555,21 @@ function FormTaxRule() {
 
   async function handleSave() {
     setError(null); setSuccess(null);
-    if (!codEfd) { setError('Informe o Cód. EFD.'); return; }
-    if (!codigoReceita) { setError('Informe o Código de Receita.'); return; }
+    const codEfdNum = parseInt(codEfd, 10);
+    const codRecNum = parseInt(codigoReceita, 10);
+    if (isNaN(codEfdNum)) { setError('Informe um Cód. EFD válido.'); return; }
+    if (isNaN(codRecNum)) { setError('Informe um Código de Receita válido.'); return; }
     if (!description.trim()) { setError('A descrição é obrigatória.'); return; }
     if (description.trim().length > 300) { setError('A descrição deve ter no máximo 300 caracteres.'); return; }
     if (!inicioVigencia) { setError('A data de início de vigência é obrigatória.'); return; }
     if (items.length === 0) { setError('Adicione pelo menos um imposto.'); return; }
     if (items.some(it => !it.taxType.trim())) { setError('Todos os tipos de imposto devem ser preenchidos.'); return; }
-    if (items.some(it => it.rate <= 0)) { setError('Todas as alíquotas devem ser maiores que zero.'); return; }
+    if (items.some(it => isNaN(it.rate) || it.rate < 0)) { setError('As alíquotas não podem ser valores negativos ou inválidos.'); return; }
     setLoading(true);
 
     const dto: Omit<TaxRuleDto, 'id'> = {
-      codEfd: parseInt(codEfd, 10),
-      codigoReceita: parseInt(codigoReceita, 10),
+      codEfd: codEfdNum,
+      codigoReceita: codRecNum,
       description: description.trim(),
       dataInicioVigencia: inicioVigencia,
       dataFimVigencia: fimVigencia || null,

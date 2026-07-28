@@ -11,7 +11,7 @@ import {
   findFinancialPlanningByNumber,
 } from '../services/api';
 import type { PaymentNoteEmpenhoDto } from '../types';
-import { formatCurrency, formatCNPJ, formatDate } from '../lib/utils';
+import { formatCurrency, formatCNPJ, formatDate, parseBRCurrency } from '../lib/utils';
 import { ReadField } from './BuscaTabs/Shared';
 import TaxItemsDisplay from '../components/TaxItemsDisplay';
 import Input from '../components/Input';
@@ -151,15 +151,17 @@ export default function Dashboard() {
     const npNum = parseInt(editState.numeroNp, 10);
     const empNum = parseInt(editState.numeroEmpenho, 10);
     const empAno = parseInt(editState.anoEmpenho, 10);
-    const fpNum = editState.numeroFP ? parseInt(editState.numeroFP, 10) : null;
-    const vinculoValor = editState.valorVinculo ? parseFloat(editState.valorVinculo) : originalRow.value;
+    const fpNum = editState.numeroFP && editState.numeroFP.trim() !== '' ? parseInt(editState.numeroFP, 10) : null;
+    const vinculoValor = editState.valorVinculo && editState.valorVinculo.trim() !== ''
+      ? parseBRCurrency(editState.valorVinculo)
+      : originalRow.value;
 
-    if (!npNum || !empNum || !empAno) {
+    if (isNaN(npNum) || isNaN(empNum) || isNaN(empAno)) {
       setRowErrors((prev) => ({ ...prev, [index]: 'Nº NP, Nº Empenho e Ano são obrigatórios.' }));
       return;
     }
-    if (isNaN(vinculoValor)) {
-      setRowErrors((prev) => ({ ...prev, [index]: 'Valor do vínculo inválido.' }));
+    if (isNaN(vinculoValor) || vinculoValor <= 0) {
+      setRowErrors((prev) => ({ ...prev, [index]: 'Valor do vínculo inválido ou menor/igual a zero.' }));
       return;
     }
     // PF: se informou número precisa do ano para derivar a data

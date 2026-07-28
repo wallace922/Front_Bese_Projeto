@@ -14,7 +14,7 @@ import type {
   UserCreateDto,
   UserUpdateDto,
 } from '../types';
-import { formatDate } from '../lib/utils';
+import { formatDate, toApiDate } from '../lib/utils';
 
 // ── Instância ─────────────────────────────────────────────────────────────────
 
@@ -51,8 +51,17 @@ function handleError<T>(error: unknown): ApiResult<T> {
     }
     if (status === 400) {
       // Tenta extrair mensagem de validação do backend
-      const msg = error.response?.data?.message ?? error.response?.data ?? null;
-      const detail = typeof msg === 'string' ? msg : 'Dados inválidos. Verifique os campos e tente novamente.';
+      const rawMsg = error.response?.data?.message ?? error.response?.data;
+      let detail = 'Dados inválidos. Verifique os campos e tente novamente.';
+      if (typeof rawMsg === 'string' && rawMsg.trim().length > 0) {
+        detail = rawMsg;
+      } else if (typeof rawMsg === 'object' && rawMsg !== null) {
+        try {
+          detail = JSON.stringify(rawMsg);
+        } catch {
+          // fallback padrão
+        }
+      }
       return { data: null, status: 400, errorMessage: detail };
     }
     if (status !== null && status >= 500) {
@@ -468,8 +477,9 @@ export async function getOpcoesReceitaPorEfd(
   data: string
 ): Promise<ApiResult<TaxRuleOption[]>> {
   try {
+    const formattedDate = toApiDate(data);
     const res = await apiInstance.get<TaxRuleOption[]>('/TaxRule/opcoes', {
-      params: { codEfd, data },
+      params: { codEfd, data: formattedDate },
     });
     return { data: res.data, status: res.status, errorMessage: null };
   } catch (e) { return handleError(e); }

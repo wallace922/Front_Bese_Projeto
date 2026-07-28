@@ -46,12 +46,19 @@ export default function BuscaFinancialPlanning() {
 
   const handleSave = () => {
     if (!found) return;
+    const num = parseInt(numero, 10);
+    const vinc = parseInt(vinculation, 10);
+    const orig = parseInt(origin, 10);
+    if (isNaN(num) || isNaN(vinc) || isNaN(orig)) {
+      setSaveError('Número, Vinculação e Origem devem ser valores numéricos válidos.');
+      return;
+    }
     const payload: FinancialPlanningDto = {
       ...found,
-      numero: parseInt(numero, 10),
+      numero: num,
       data,
-      vinculation: parseInt(vinculation, 10),
-      origin: parseInt(origin, 10),
+      vinculation: vinc,
+      origin: orig,
     };
     handleSaveRequest(
       () => updateFinancialPlanning(payload),

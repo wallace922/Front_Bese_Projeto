@@ -41,21 +41,29 @@ export default function BuscaEmpenho() {
     setFound(e);
     setNumero(String(e.numero));
     setAno(String(e.ano));
-    setFontDeOrigin(String(e.fontDeOrigin));
-    setInternalPlan(e.internalPlan);
+    setFontDeOrigin(e.fontDeOrigin != null ? String(e.fontDeOrigin) : '');
+    setInternalPlan(e.internalPlan ?? '');
     setNature(String(e.nature));
     setEditing(true);
   };
 
   const handleSave = () => {
     if (!found) return;
+    const num = parseInt(numero, 10);
+    const anoNum = parseInt(ano, 10);
+    const natNum = parseInt(nature, 10);
+    if (isNaN(num) || isNaN(anoNum) || isNaN(natNum)) {
+      setSaveError('Número, Ano e Natureza devem ser numéricos válidos.');
+      return;
+    }
+    const fontNum = fontDeOrigin && fontDeOrigin.trim() !== '' ? parseInt(fontDeOrigin, 10) : undefined;
     const payload: EmpenhoDto = {
       ...found,
-      numero: parseInt(numero, 10),
-      ano: parseInt(ano, 10),
-      fontDeOrigin: parseInt(fontDeOrigin, 10),
-      internalPlan,
-      nature: parseInt(nature, 10)
+      numero: num,
+      ano: anoNum,
+      ...(fontNum !== undefined && !isNaN(fontNum) ? { fontDeOrigin: fontNum } : {}),
+      internalPlan: internalPlan.trim(),
+      nature: natNum,
     };
     handleSaveRequest(
       () => updateEmpenho(payload),

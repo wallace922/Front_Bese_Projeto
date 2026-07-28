@@ -188,21 +188,22 @@ export default function BuscaTaxRule() {
     if (!selected || selected.id === undefined) return;
     if (!description.trim()) { setSaveError('A descrição é obrigatória.'); return; }
     if (description.trim().length > 300) { setSaveError('A descrição deve ter no máximo 300 caracteres.'); return; }
-    if (!codigoReceita) { setSaveError('O Código de Receita é obrigatório.'); return; }
+    const codRecNum = parseInt(codigoReceita, 10);
+    if (isNaN(codRecNum)) { setSaveError('O Código de Receita deve ser numérico.'); return; }
     if (!inicioVigencia) { setSaveError('A data de início de vigência é obrigatória.'); return; }
     if (items.some(it => !it.taxType.trim())) { setSaveError('Todos os tipos de imposto devem ser preenchidos.'); return; }
+    if (items.some(it => isNaN(it.rate) || it.rate < 0)) { setSaveError('As alíquotas não podem ser valores negativos ou inválidos.'); return; }
 
     setSaving(true); setSaveError(null);
     const res = await updateTaxRule(selected.id, {
-      codigoReceita: parseInt(codigoReceita, 10),
+      codigoReceita: codRecNum,
       description: description.trim(),
-      dataInicioVigencia: inicioVigencia,  // formatDate é aplicado dentro de updateTaxRule
+      dataInicioVigencia: inicioVigencia,
       dataFimVigencia: fimVigencia || null,
       items,
     });
     if (res.data) {
       setSuccess('Regra atualizada com sucesso!');
-      // Atualizar item na lista local
       setAllResults(prev => prev.map(r => r.id === res.data!.id ? res.data! : r));
       setTimeout(() => { setSuccess(null); closeForm(); }, 2000);
     } else {

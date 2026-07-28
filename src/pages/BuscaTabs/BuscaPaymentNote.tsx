@@ -10,7 +10,7 @@ import { NpItemEditor, itemToEditState, editStateToItem, DEFAULT_ITEM } from '..
 import type { ItemEditState } from '../../components/NpItemEditor';
 import { findNpByNumeroEAno, getAllNp, updatePaymentNote, findEmpresaByCnpj } from '../../services/api';
 import type { PaymentNoteDto } from '../../types';
-import { toInputDate, formatCurrency, formatDate } from '../../lib/utils';
+import { toInputDate, formatCurrency, formatDate, parseBRCurrency } from '../../lib/utils';
 import { SectionTitle, TableContainer, applyCnpjMask } from './Shared';
 import { useEntitySearch } from '../../hooks/useEntitySearch';
 
@@ -91,9 +91,16 @@ export default function BuscaPaymentNote() {
 
   const openConfirm = () => {
     if (!found) return;
+    const npNum = parseInt(numeroNp, 10);
+    if (isNaN(npNum)) { setSaveError('Nº NP inválido.'); return; }
     if (!cnpjValid) { setSaveError('Valide o CNPJ antes de salvar.'); return; }
-    if (editItems.some(it => !it.value || parseFloat(it.value) <= 0)) {
-      setSaveError('Todos os itens devem ter um valor maior que zero.'); return;
+    if (editItems.some(it => !it.value || isNaN(parseBRCurrency(it.value)) || parseBRCurrency(it.value) <= 0)) {
+      setSaveError('Todos os itens devem ter um valor válido maior que zero.'); return;
+    }
+    const itemSemReceita = editItems.find(it => it.taxTipo === 'NAO_OPTANTE' && it.codEfd && it.codigoReceita == null);
+    if (itemSemReceita) {
+      setSaveError(`Selecione o Código de Receita para o item com Cód. EFD ${itemSemReceita.codEfd}.`);
+      return;
     }
     setConfirmOpen(true);
   };
@@ -101,9 +108,11 @@ export default function BuscaPaymentNote() {
   const handleSaveConfirmed = () => {
     setConfirmOpen(false);
     if (!found) return;
+    const npNum = parseInt(numeroNp, 10);
+    if (isNaN(npNum)) { setSaveError('Nº NP inválido.'); return; }
     const payload: PaymentNoteDto = {
       ...found,
-      numeroNp: parseInt(numeroNp, 10),
+      numeroNp: npNum,
       dataLiquidacao: dataLiq,
       docOrigin,
       status,

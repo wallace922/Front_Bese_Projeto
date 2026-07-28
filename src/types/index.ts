@@ -227,7 +227,7 @@ export interface TaxRuleOption {
 
 // ── User ──────────────────────────────────────────────────────────────────────
 
-export type Role = 'ADMIN' | 'USER' | 'VIEWER';
+export type Role = 'ADMIN' | 'USER';
 
 export interface UserDto {
   id: number;
