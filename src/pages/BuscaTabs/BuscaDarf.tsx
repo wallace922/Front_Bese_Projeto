@@ -389,6 +389,29 @@ function GroupTable({ g, expanded }: { g: CodigoGroup; expanded: boolean }) {
                     );
                   })
               }
+
+              {/* ── Subtotal por empresa ── */}
+              {expanded && (
+                <tr key={`subtotal-${eIdx}`} className="bg-stone-900/40 border-t border-dashed border-stone-700/60">
+                  <td colSpan={ID_COLS} className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-stone-400 font-bold">
+                    Subtotal — {emp.nome}
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-stone-300 font-bold text-xs">
+                    {formatCurrency(emp.totalBruto)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-stone-300 font-bold text-xs">
+                    {formatCurrency(emp.totalBaseCalculo)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-amber-300/80 font-bold text-xs">
+                    {formatCurrency(emp.totalIr + emp.totalCsll + emp.totalCofins + emp.totalPis)}
+                  </td>
+                  {hasIr     && <td className="px-2 py-1.5 text-right text-stone-300 font-semibold text-xs"><Val v={emp.totalIr} /></td>}
+                  {hasCsll   && <td className="px-2 py-1.5 text-right text-stone-300 font-semibold text-xs"><Val v={emp.totalCsll} /></td>}
+                  {hasCofins && <td className="px-2 py-1.5 text-right text-stone-300 font-semibold text-xs"><Val v={emp.totalCofins} /></td>}
+                  {hasPis    && <td className="px-2 py-1.5 text-right text-stone-300 font-semibold text-xs"><Val v={emp.totalPis} /></td>}
+                  {hasRetAgr && <td className="px-2 py-1.5 text-right text-amber-200/80 font-bold text-xs"><Val v={emp.totalRetAgr} /></td>}
+                </tr>
+              )}
             </React.Fragment>
           ))}
 
