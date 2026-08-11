@@ -328,14 +328,22 @@ function FormPaymentNote() {
     const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
     if (!dateRegex.test(dataLiq)) { setError('Data Liquidação inválida. Use o formato DD/MM/YYYY.'); return; }
     if (!cnpjValid) { setError('Valide o CNPJ antes de salvar.'); return; }
+    if (status === 'PAGA' && !datePayment) {
+      setError('A Data de Pagamento é obrigatória quando o status é PAGA.');
+      return;
+    }
     if (npItems.length === 0) { setError('Adicione pelo menos um item.'); return; }
     if (npItems.some(it => !it.value || parseBRCurrency(it.value) <= 0)) {
       setError('Todos os itens devem ter um valor maior que zero.'); return;
     }
-    const itemSemReceita = npItems.find(it => it.taxTipo === 'NAO_OPTANTE' && it.codEfd && it.codigoReceita == null);
-    if (itemSemReceita) {
-      setError(`Selecione o Código de Receita para o item com Cód. EFD ${itemSemReceita.codEfd}.`);
-      return;
+    // Valida que todos os grupos NAO_OPTANTE com codEfd têm código de receita selecionado
+    for (const it of npItems) {
+      for (const g of it.taxGroups) {
+        if (g.taxTipo === 'NAO_OPTANTE' && g.codEfd && g.codigoReceita == null) {
+          setError(`Selecione o Código de Receita para o grupo com Cód. EFD ${g.codEfd}.`);
+          return;
+        }
+      }
     }
     setConfirmOpen(true);
   }

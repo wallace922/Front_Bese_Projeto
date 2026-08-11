@@ -93,7 +93,20 @@ export interface PaymentNoteItemDto {
   id?: number;
   description?: string;
   value: number;
-  tax: TaxDto;
+  /**
+   * Lista de grupos de imposto — novo formato (backend >= V7).
+   * Quando presente, tem precedência sobre o campo `tax` singular.
+   * Cada grupo pode ter um codEfd/codigoReceita diferente, todos calculados
+   * sobre o mesmo `value` deste item.
+   */
+  taxes?: TaxDto[];
+  /**
+   * Grupo de imposto singular — formato legado (compatibilidade retroativa).
+   * Equivale a taxes[0]. Ainda enviado e lido pelo backend durante a transição.
+   * @deprecated Use `taxes` para ler/escrever múltiplos grupos.
+   */
+  tax?: TaxDto;
+  /** @deprecated Moved to each TaxDto.manualAdjustment. Kept for legacy payloads. */
   manualAdjustment?: boolean;
   /**
    * Empresa beneficiária do imposto retido neste item.

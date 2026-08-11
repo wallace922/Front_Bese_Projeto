@@ -10,6 +10,7 @@ import type {
   PaymentNoteVinculacaoDto,
   PaymentNoteEmpenhoBasicDto,
   PaymentNoteItemDto,
+  TaxDto,
   UserDto,
   UserCreateDto,
   UserUpdateDto,
@@ -92,29 +93,41 @@ export type PaginatedResponse<T> = PageDto<T>;
  * Serializa um item de PaymentNote para envio ao backend.
  * Preserva somente os campos esperados pelo PaymentNoteItemDto.
  */
+function serializeTaxPayload(tax?: TaxDto | null) {
+  if (!tax) return null;
+  if (tax.manualAdjustment) {
+    return {
+      tipo: tax.tipo,
+      codEfd: tax.codEfd,
+      codigoReceita: tax.codigoReceita ?? null,
+      manualAdjustment: true,
+      calculatedItems: tax.calculatedItems ?? [],
+    };
+  }
+  return {
+    tipo: tax.tipo,
+    codEfd: tax.codEfd,
+    ...(tax.codigoReceita != null ? { codigoReceita: tax.codigoReceita } : {}),
+  };
+}
+
+/**
+ * Serializa um item de PaymentNote para envio ao backend.
+ * Preserva a lista inteira de grupos de imposto (taxes) e o tax legado.
+ */
 function serializeItem(item: PaymentNoteItemDto) {
-  const taxPayload = item.tax
-    ? item.tax.manualAdjustment
-      ? {
-          tipo: item.tax.tipo,
-          codEfd: item.tax.codEfd,
-          codigoReceita: item.tax.codigoReceita ?? null,
-          manualAdjustment: true,
-          calculatedItems: item.tax.calculatedItems ?? [],
-        }
-      : {
-          tipo: item.tax.tipo,
-          codEfd: item.tax.codEfd,
-          // Envia codigoReceita somente quando foi selecionado pelo usuário
-          ...(item.tax.codigoReceita != null ? { codigoReceita: item.tax.codigoReceita } : {}),
-        }
-    : null;
+  const taxList = item.taxes && item.taxes.length > 0
+    ? item.taxes
+    : item.tax ? [item.tax] : [];
+
+  const serializedTaxes = taxList.map(serializeTaxPayload).filter((t): t is NonNullable<typeof t> => t !== null);
 
   return {
     ...(item.id !== undefined ? { id: item.id } : {}),
     description: item.description ?? '',
     value: item.value,
-    tax: taxPayload,
+    taxes: serializedTaxes,
+    tax: serializedTaxes[0] ?? null,
     manualAdjustment: item.manualAdjustment ?? false,
     // Envia o CNPJ do beneficiário somente quando foi informado
     ...(item.empresaBeneficiaria?.cnpj

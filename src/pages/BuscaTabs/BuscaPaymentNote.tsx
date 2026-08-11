@@ -94,13 +94,21 @@ export default function BuscaPaymentNote() {
     const npNum = parseInt(numeroNp, 10);
     if (isNaN(npNum)) { setSaveError('Nº NP inválido.'); return; }
     if (!cnpjValid) { setSaveError('Valide o CNPJ antes de salvar.'); return; }
+    if (status === 'PAGA' && !datePayment) {
+      setSaveError('A Data de Pagamento é obrigatória quando o status é PAGA.');
+      return;
+    }
     if (editItems.some(it => !it.value || isNaN(parseBRCurrency(it.value)) || parseBRCurrency(it.value) <= 0)) {
       setSaveError('Todos os itens devem ter um valor válido maior que zero.'); return;
     }
-    const itemSemReceita = editItems.find(it => it.taxTipo === 'NAO_OPTANTE' && it.codEfd && it.codigoReceita == null);
-    if (itemSemReceita) {
-      setSaveError(`Selecione o Código de Receita para o item com Cód. EFD ${itemSemReceita.codEfd}.`);
-      return;
+    // Valida que todos os grupos NAO_OPTANTE com codEfd têm código de receita selecionado
+    for (const it of editItems) {
+      for (const g of it.taxGroups) {
+        if (g.taxTipo === 'NAO_OPTANTE' && g.codEfd && g.codigoReceita == null) {
+          setSaveError(`Selecione o Código de Receita para o grupo com Cód. EFD ${g.codEfd}.`);
+          return;
+        }
+      }
     }
     setConfirmOpen(true);
   };

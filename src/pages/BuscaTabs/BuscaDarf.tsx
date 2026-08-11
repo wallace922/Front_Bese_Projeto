@@ -5,7 +5,7 @@ import Select from '../../components/Select';
 import Input from '../../components/Input';
 import { SectionTitle } from './Shared';
 import { getPaymentEmpenhoByMesAno } from '../../services/api';
-import type { EmpresaDto, PaymentNoteVinculacaoDto, PaymentNoteItemDto, TaxCalculatedItem } from '../../types';
+import type { EmpresaDto, PaymentNoteVinculacaoDto, PaymentNoteItemDto, TaxCalculatedItem, TaxDto } from '../../types';
 import { formatCurrency, formatCNPJ } from '../../lib/utils';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -128,21 +128,34 @@ function buildGroups(results: PaymentNoteVinculacaoDto[]): CodigoGroup[] {
       uniqueItems.push(it);
     }
 
-    const naoOptanteItems = uniqueItems.filter(it => it.tax?.tipo === 'NAO_OPTANTE');
-    const fallbackItems = naoOptanteItems.length > 0 ? naoOptanteItems : uniqueItems.slice(0, 1);
-
-    // Agrupa os itens da mesma NP por codigoReceita
-    const itemsByReceita = new Map<number | null, PaymentNoteItemDto[]>();
-    for (const item of fallbackItems) {
-      const codRec = item.tax?.codigoReceita ?? null;
-      if (!itemsByReceita.has(codRec)) {
-        itemsByReceita.set(codRec, []);
-      }
-      itemsByReceita.get(codRec)!.push(item);
+    // Extrai pares (item, taxGroup) para processar cada grupo de imposto de cada item
+    interface ItemTaxPair {
+      item: PaymentNoteItemDto;
+      tax: TaxDto;
     }
 
-    // Para cada codigoReceita, cria uma única linha consolidando os itens
-    for (const [codRec, itemsInReceita] of itemsByReceita) {
+    const pairs: ItemTaxPair[] = [];
+    for (const item of uniqueItems) {
+      const groups = (item.taxes && item.taxes.length > 0) ? item.taxes : (item.tax ? [item.tax] : []);
+      const naoOptanteGroups = groups.filter(g => g.tipo === 'NAO_OPTANTE');
+      const targetGroups = naoOptanteGroups.length > 0 ? naoOptanteGroups : groups.slice(0, 1);
+      for (const g of targetGroups) {
+        pairs.push({ item, tax: g });
+      }
+    }
+
+    // Agrupa os pares da mesma NP por codigoReceita
+    const pairsByReceita = new Map<number | null, ItemTaxPair[]>();
+    for (const pair of pairs) {
+      const codRec = pair.tax.codigoReceita ?? null;
+      if (!pairsByReceita.has(codRec)) {
+        pairsByReceita.set(codRec, []);
+      }
+      pairsByReceita.get(codRec)!.push(pair);
+    }
+
+    // Para cada codigoReceita, cria uma única linha consolidando os itens/grupos
+    for (const [codRec, pairsInReceita] of pairsByReceita) {
       const key = String(codRec ?? 'SEM');
       if (!codigoMap.has(key)) {
         codigoMap.set(key, {
@@ -154,23 +167,21 @@ function buildGroups(results: PaymentNoteVinculacaoDto[]): CodigoGroup[] {
 
       // Usa a empresa beneficiária do item quando disponível (nova feature);
       // caso contrário, herda a empresa da própria NP (comportamento original).
-      // Como todos os itens em itemsInReceita compartilham o mesmo codRec,
-      // usamos o primeiro item para determinar o beneficiário do grupo.
-      const primItem = itemsInReceita[0];
-      const empresaReal: EmpresaDto = primItem.empresaBeneficiaria ?? np.empresa;
+      const primPair = pairsInReceita[0];
+      const empresaReal: EmpresaDto = primPair.item.empresaBeneficiaria ?? np.empresa;
       const cnpj = empresaReal.cnpj;
 
       if (!grupo.empresaMap.has(cnpj)) {
         grupo.empresaMap.set(cnpj, { nome: empresaReal.nome, rows: [] });
       }
 
-      // Consolda o valor dos itens desse código de receita
-      const mergedValue = itemsInReceita.reduce((sum, it) => sum + it.value, 0);
+      // Consolida o valor dos itens desse código de receita
+      const mergedValue = pairsInReceita.reduce((sum, p) => sum + p.item.value, 0);
 
       // Consolida os impostos calculados
       const calcMap = new Map<string, TaxCalculatedItem>();
-      for (const it of itemsInReceita) {
-        const calcs = it.tax?.calculatedItems ?? [];
+      for (const p of pairsInReceita) {
+        const calcs = p.tax.calculatedItems ?? [];
         for (const c of calcs) {
           const norm = normTaxType(c.taxType);
           if (!calcMap.has(norm)) {
@@ -182,8 +193,8 @@ function buildGroups(results: PaymentNoteVinculacaoDto[]): CodigoGroup[] {
       const mergedCalc = Array.from(calcMap.values());
 
       // Combina as descrições
-      const descriptions = itemsInReceita
-        .map(it => it.tax?.taxRuleDescription)
+      const descriptions = pairsInReceita
+        .map(p => p.tax.taxRuleDescription)
         .filter((desc): desc is string => typeof desc === 'string' && desc.trim().length > 0);
       const uniqueDescriptions = Array.from(new Set(descriptions));
       const mergedDesc = uniqueDescriptions.join(' | ') || null;
@@ -191,14 +202,14 @@ function buildGroups(results: PaymentNoteVinculacaoDto[]): CodigoGroup[] {
       const mergedItem: PaymentNoteItemDto = {
         value: mergedValue,
         tax: {
-          tipo: itemsInReceita[0].tax?.tipo ?? 'NAO_OPTANTE',
-          codEfd: itemsInReceita[0].tax?.codEfd ?? null,
+          tipo: primPair.tax.tipo ?? 'NAO_OPTANTE',
+          codEfd: primPair.tax.codEfd ?? null,
           codigoReceita: codRec ?? undefined,
           taxRuleDescription: mergedDesc,
           calculatedItems: mergedCalc,
         },
         // Propaga o beneficiário real para que a tabela possa exibi-lo
-        empresaBeneficiaria: primItem.empresaBeneficiaria ?? null,
+        empresaBeneficiaria: primPair.item.empresaBeneficiaria ?? null,
       };
 
       grupo.empresaMap.get(cnpj)!.rows.push({ np, item: mergedItem, calc: mergedCalc, empresaBeneficiaria: empresaReal });

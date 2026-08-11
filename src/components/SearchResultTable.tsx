@@ -78,22 +78,38 @@ export default function SearchResultTable({ data, onEdit }: SearchResultTablePro
                           </div>
                           <div className="space-y-1">
                             <p className="text-[10px] uppercase tracking-widest text-stone-500 font-bold">Tributação</p>
-                            {!item.tax ? (
-                              <span className="text-stone-600 text-xs">Sem tributação</span>
-                            ) : item.tax.tipo === 'OPTANTE' ? (
-                              <span className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-900/50 text-emerald-300 border border-emerald-700 uppercase tracking-wider">Optante</span>
-                            ) : (
-                              <div className="space-y-1">
-                                <div className="text-xs text-stone-400">
-                                  Cód. EFD: <span className="text-amber-300 font-mono">{item.tax.codEfd}</span>
+                            {(() => {
+                              const groups = (item.taxes && item.taxes.length > 0) ? item.taxes : (item.tax ? [item.tax] : []);
+                              if (groups.length === 0) {
+                                return <span className="text-stone-600 text-xs">Sem tributação</span>;
+                              }
+                              return groups.map((taxGroup, gIdx) => (
+                                <div key={gIdx} className="space-y-1">
+                                  {groups.length > 1 && (
+                                    <p className="text-[9px] uppercase tracking-widest text-amber-500/70 font-bold">
+                                      Grupo {gIdx + 1}
+                                    </p>
+                                  )}
+                                  {taxGroup.tipo === 'OPTANTE' ? (
+                                    <span className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-900/50 text-emerald-300 border border-emerald-700 uppercase tracking-wider">Optante</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div className="text-xs text-stone-400">
+                                        Cód. EFD: <span className="text-amber-300 font-mono">{taxGroup.codEfd}</span>
+                                        {taxGroup.codigoReceita != null && (
+                                          <span className="ml-2 text-stone-500 font-mono text-[11px]">(Receita: {taxGroup.codigoReceita})</span>
+                                        )}
+                                      </div>
+                                      {taxGroup.calculatedItems && taxGroup.calculatedItems.length > 0 ? (
+                                        <TaxItemsDisplay items={taxGroup.calculatedItems} taxStatus={taxGroup.taxStatus} compact />
+                                      ) : (
+                                        <span className="text-stone-600 text-xs">Aguardando cálculo</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                                {item.tax.calculatedItems && item.tax.calculatedItems.length > 0 ? (
-                                  <TaxItemsDisplay items={item.tax.calculatedItems} taxStatus={item.tax.taxStatus} compact />
-                                ) : (
-                                  <span className="text-stone-600 text-xs">Aguardando cálculo</span>
-                                )}
-                              </div>
-                            )}
+                              ));
+                            })()}
                           </div>
                         </div>
                       ))}
