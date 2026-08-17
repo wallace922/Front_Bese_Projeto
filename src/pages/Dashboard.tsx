@@ -4,9 +4,12 @@ import PageShell from '../components/PageShell';
 import Button from '../components/Button';
 import Alert from '../components/Alert';
 import PaginationControls from '../components/PaginationControls';
+import ConfirmModal from '../components/ConfirmModal';
+import { useAuth } from '../contexts/AuthContext';
 import {
   getAllPaymentEmpenhos,
   updatePaymentEmpenho,
+  deletePaymentEmpenho,
   findNpByNumeroEAno,
   findFinancialPlanningByNumber,
 } from '../services/api';
@@ -70,6 +73,9 @@ function extractNpYear(dataLiquidacao: string): number | null {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+
   const [rows, setRows] = useState<PaymentNoteEmpenhoDto[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -82,6 +88,15 @@ export default function Dashboard() {
   const [editingMap, setEditingMap] = useState<EditingMap>({});
   const [confirmingMap, setConfirmingMap] = useState<Record<number, boolean>>({});
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+
+  // Delete (apenas ADMIN)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // Quick value edit (USER e ADMIN)
+  const [quickEditRow, setQuickEditRow] = useState<{ row: PaymentNoteEmpenhoDto; valor: string } | null>(null);
+  const [quickEditLoading, setQuickEditLoading] = useState(false);
+  const [quickEditError, setQuickEditError] = useState<string | null>(null);
 
   // Accordion expand
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
@@ -243,7 +258,59 @@ export default function Dashboard() {
     setConfirmingMap((prev) => ({ ...prev, [index]: false }));
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Deleção (ADMIN only) ────────────────────────────────────────────────
+
+  async function handleDelete(id: number) {
+    setDeletingId(id);
+    const result = await deletePaymentEmpenho(id);
+    setDeletingId(null);
+    setConfirmDeleteId(null);
+    if (result.status === 204 || result.status === 200) {
+      await loadAll(currentPage);
+    } else {
+      setListError(result.errorMessage ?? 'Erro ao deletar registro.');
+    }
+  }
+
+  // ── Edição rápida de valor (USER e ADMIN) ─────────────────────────────────
+
+  async function handleQuickValueEdit() {
+    if (!quickEditRow) return;
+    const { row } = quickEditRow;
+    const newValue = parseBRCurrency(quickEditRow.valor);
+    if (isNaN(newValue) || newValue <= 0) {
+      setQuickEditError('Informe um valor válido maior que zero.');
+      return;
+    }
+    setQuickEditLoading(true);
+    setQuickEditError(null);
+
+    // Mantém todos os outros campos do registro original
+    const result = await updatePaymentEmpenho(row.id!, {
+      paymentNote: {
+        numeroNp: row.paymentNoteBasicDto.numeroNp,
+        dataLiquidacao: row.paymentNoteBasicDto.dataLiquidacao,
+      },
+      empenho: {
+        numero: row.empenhoDto.numero,
+        ano:    row.empenhoDto.ano,
+      },
+      financialPlanning: row.financialPlanningBasicDto
+        ? { numero: row.financialPlanningBasicDto.numero, data: row.financialPlanningBasicDto.data }
+        : null,
+      value: newValue,
+    });
+
+    setQuickEditLoading(false);
+    if (result.data) {
+      setQuickEditRow(null);
+      await loadAll(currentPage);
+    } else {
+      setQuickEditError(result.errorMessage ?? 'Erro ao atualizar valor.');
+    }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────────
 
   return (
     <PageShell>
@@ -384,7 +451,13 @@ export default function Dashboard() {
                             </div>
                             <div>
                               <span className="text-stone-500">Vínculo:</span>
-                              <span className="text-amber-300 font-bold ml-1">{formatCurrency(row.value)}</span>
+                              <button
+                                onClick={() => setQuickEditRow({ row, valor: String(row.value ?? 0) })}
+                                className="text-amber-300 font-bold ml-1 hover:underline hover:text-amber-200 transition-colors cursor-pointer"
+                                title="Clique para editar o valor do vínculo"
+                              >
+                                {formatCurrency(row.value)}
+                              </button>
                             </div>
                             <div>
                               <span className="text-stone-500">Empenho:</span>
@@ -400,10 +473,21 @@ export default function Dashboard() {
                               PF: <span className="text-amber-400">#{row.financialPlanningBasicDto.numero}</span>
                             </div>
                           )}
-                          <div className="mt-3 pt-2 border-t border-white/10 flex justify-end">
+                          <div className="mt-3 pt-2 border-t border-white/10 flex justify-end gap-2">
                             <Button variant="secondary" size="sm" onClick={() => startEdit(index, row)}>
                               ✎ Editar
                             </Button>
+                            {isAdmin && (
+                              <Button
+                                id={`delete-empenho-mobile-${row.id}`}
+                                variant="danger"
+                                size="sm"
+                                loading={deletingId === row.id}
+                                onClick={() => setConfirmDeleteId(row.id!)}
+                              >
+                                🗑 Excluir
+                              </Button>
+                            )}
                           </div>
                         </>
                       )}
@@ -475,8 +559,14 @@ export default function Dashboard() {
                                 <span className="text-stone-600">—</span>
                               )}
                             </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <span className="text-amber-300 font-bold">{formatCurrency(row.value ?? 0)}</span>
+                             <td className="px-3 py-2.5 text-right">
+                              <button
+                                onClick={() => setQuickEditRow({ row, valor: String(row.value ?? 0) })}
+                                className="text-amber-300 font-bold hover:text-amber-200 hover:underline transition-colors cursor-pointer"
+                                title="Clique para editar o valor do vínculo"
+                              >
+                                {formatCurrency(row.value ?? 0)}
+                              </button>
                             </td>
                             <td className="px-3 py-2.5 text-center">
                               <div className="flex items-center justify-center gap-1">
@@ -491,7 +581,7 @@ export default function Dashboard() {
                                   </>
                                 ) : (
                                   <>
-                                  <Button
+                                    <Button
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => toggleExpand(index)}
@@ -502,6 +592,18 @@ export default function Dashboard() {
                                     <Button variant="secondary" size="sm" onClick={() => startEdit(index, row)}>
                                       ✎
                                     </Button>
+                                    {isAdmin && (
+                                      <Button
+                                        id={`delete-empenho-${row.id}`}
+                                        variant="danger"
+                                        size="sm"
+                                        loading={deletingId === row.id}
+                                        onClick={() => setConfirmDeleteId(row.id!)}
+                                        title="Excluir vínculo"
+                                      >
+                                        🗑
+                                      </Button>
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -629,6 +731,93 @@ export default function Dashboard() {
               onGoToPage={(page) => loadAll(page)}
             />
           </>
+        )}
+
+        {/* Modal de Confirmação de Exclusão (ADMIN only) */}
+        {confirmDeleteId !== null && (
+          <ConfirmModal
+            message="Deseja realmente excluir este vínculo? Esta ação não pode ser desfeita."
+            confirmLabel="Excluir Vínculo"
+            loading={deletingId !== null}
+            onConfirm={() => handleDelete(confirmDeleteId)}
+            onCancel={() => setConfirmDeleteId(null)}
+          />
+        )}
+
+        {/* Modal de Edição Rápida de Valor (USER e ADMIN) */}
+        {quickEditRow && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => !quickEditLoading && setQuickEditRow(null)}
+            />
+            <div className="relative z-10 w-full max-w-xs mx-4 rounded-2xl border border-amber-500/20 bg-black/90 shadow-2xl p-6 flex flex-col gap-4">
+              {/* Cabeçalho */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-amber-400 font-black uppercase tracking-widest text-sm">Editar Valor</h3>
+                  <p className="text-stone-500 text-xs mt-0.5">
+                    NP {quickEditRow.row.paymentNoteBasicDto.numeroNp} &mdash; Emp. {quickEditRow.row.empenhoDto.numero}/{quickEditRow.row.empenhoDto.ano}
+                  </p>
+                </div>
+                <button
+                  onClick={() => !quickEditLoading && setQuickEditRow(null)}
+                  className="text-stone-500 hover:text-stone-300 transition-colors text-lg leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Campo de valor */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold uppercase tracking-widest text-stone-400">Valor do Vínculo</label>
+                <input
+                  id="quick-edit-valor-input"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={quickEditRow.valor}
+                  onChange={(e) => {
+                    setQuickEditError(null);
+                    setQuickEditRow(prev => prev ? { ...prev, valor: e.target.value } : null);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && !quickEditLoading && handleQuickValueEdit()}
+                  autoFocus
+                  className="px-4 py-2.5 rounded-lg bg-white/5 border border-amber-500/30 text-amber-300 font-bold text-sm focus:outline-none focus:border-amber-500/70 transition-all"
+                />
+                <p className="text-stone-600 text-xs">Valor atual: {formatCurrency(quickEditRow.row.value ?? 0)}</p>
+              </div>
+
+              {/* Erro */}
+              {quickEditError && (
+                <p className="text-red-400 text-xs">{quickEditError}</p>
+              )}
+
+              {/* Ações */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQuickEditRow(null)}
+                  disabled={quickEditLoading}
+                  className="flex-1 py-2 rounded-lg border border-white/10 text-stone-400 text-xs font-bold uppercase tracking-widest hover:border-white/30 disabled:opacity-40 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  id="quick-edit-valor-submit"
+                  type="button"
+                  onClick={handleQuickValueEdit}
+                  disabled={quickEditLoading}
+                  className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {quickEditLoading && (
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  )}
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </PageShell>

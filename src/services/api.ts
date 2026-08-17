@@ -199,6 +199,14 @@ export async function updatePaymentEmpenho(
   } catch (e) { return handleError(e); }
 }
 
+/** DELETE /API/PaymentEmpenho/{id} — remove um vínculo. Requer ADMIN. */
+export async function deletePaymentEmpenho(id: number): Promise<ApiResult<void>> {
+  try {
+    const res = await apiInstance.delete<void>(`/PaymentEmpenho/${id}`);
+    return { data: res.data, status: res.status, errorMessage: null };
+  } catch (e) { return handleError(e); }
+}
+
 /**
  * GET /API/PaymentEmpenho/por-mes-ano
  * Relatório de PaymentNotes associadas a FinancialPlanning em um mês/ano.

@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import PageShell from '../components/PageShell';
+import ConfirmModal from '../components/ConfirmModal';
 import {
   getAllUsers,
   getUserByCpf,
@@ -70,6 +71,7 @@ function UserListTab() {
 
   const [editingUser, setEditingUser] = useState<UserDto | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<UserDto | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
 
   const load = async (p = page) => {
@@ -84,7 +86,9 @@ function UserListTab() {
   useEffect(() => { load(); }, [page]);
 
   const handleDelete = async (user: UserDto) => {
+    setDeletingUser(true);
     const res = await deleteUser(user.id);
+    setDeletingUser(false);
     setConfirmDelete(null);
     if (res.status === 204 || res.status === 200) {
       setActionMsg({ type: 'ok', msg: `Usuário "${user.name}" removido com sucesso.` });
@@ -200,6 +204,8 @@ function UserListTab() {
       {confirmDelete && (
         <ConfirmModal
           message={`Deseja realmente excluir o usuário "${confirmDelete.name}"? Esta ação não pode ser desfeita.`}
+          confirmLabel="Excluir"
+          loading={deletingUser}
           onConfirm={() => handleDelete(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
         />
@@ -368,30 +374,7 @@ function UserEditModal({ user, onClose, onSuccess }: { user: UserDto; onClose: (
   );
 }
 
-// ── Modal de Confirmação ───────────────────────────────────────────────────────
-
-function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm mx-4 rounded-2xl border border-red-500/20 bg-black/90 shadow-2xl p-6 flex flex-col gap-4">
-        <p className="text-gray-200 text-sm">{message}</p>
-        <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 py-2 rounded-lg border border-white/10 text-stone-400 text-xs font-bold uppercase tracking-widest hover:border-white/30 transition-colors">
-            Cancelar
-          </button>
-          <button
-            id="confirm-delete-btn"
-            onClick={onConfirm}
-            className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-widest transition-all"
-          >
-            Excluir
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ── Nota: ConfirmModal foi extraído para src/components/ConfirmModal.tsx ────────
 
 // ── Componentes de Formulário Reutilizáveis ────────────────────────────────────
 
